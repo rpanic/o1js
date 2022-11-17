@@ -1676,6 +1676,9 @@ async function addMissingProofs(
           { memoized, currentIndex: 0, blindingValue },
           async () => {
             try {
+              console.log('proof');
+              console.log(JSON.stringify(publicInputFields));
+              console.log(JSON.stringify(previousProofs));
               return await provers[i](publicInputFields, previousProofs);
             } catch (err) {
               console.error(

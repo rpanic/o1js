@@ -349,11 +349,11 @@ async function upgradeabilityTests({ withVesting }: { withVesting: boolean }) {
 
   // Making sure that both token holder accounts have been updated with the new modified verification key
   expect(
-    Mina.getAccount(addresses.dex, tokenX.experimental.token.id).verificationKey
+    Mina.getAccount(addresses.dex, tokenX.token.id).verificationKey
   ).toEqual(ModifiedDexTokenHolder._verificationKey?.data);
 
   expect(
-    Mina.getAccount(addresses.dex, tokenY.experimental.token.id).verificationKey
+    Mina.getAccount(addresses.dex, tokenY.token.id).verificationKey
   ).toEqual(ModifiedDexTokenHolder._verificationKey?.data);
 
   // this is important; we have to re-enable proof production (and verification) to make sure the proofs are valid against the newly deployed VK

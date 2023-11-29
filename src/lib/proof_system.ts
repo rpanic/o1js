@@ -185,9 +185,11 @@ class Proof<Input, Output> {
 }
 
 class DynamicProof<Input, Output> extends Proof<Input, Output> {
-  public computedTag?: string
+  public computedTag?: () => { name: string }
 
   private initializeVk(vk: VerificationKey) {
+    console.log("Computed key:")
+    console.log(this.computedTag?.())
     const tag = (this.constructor as Subclass<typeof Proof>).tag();
     if(Provable.inProver()){
       Pickles.sideLoaded.inProver(tag, vk.data);
@@ -751,8 +753,9 @@ function picklesRuleFromFunction(
         let output = toFieldVars(type.output, publicOutput);
         previousStatements.push(MlPair(input, output));
 
-        if (Proof.prototype instanceof DynamicProof) {
+        if (proof_ instanceof DynamicProof) {
           console.log("Dynamic proof:", Proof.tag());
+          proof_.computedTag = Proof.tag;
           Pickles.sideLoaded.create(Proof.tag().name, proofInstance.maxProofsVerified, input.length, output.length);
         }
       } else if (arg.type === 'generic') {

@@ -1484,10 +1484,26 @@ Use the optional \`maxTransactionsWithActions\` argument to increase this number
   };
 }
 
+// class VerificationKey extends Struct({
+//   hash: Field
+// }) {
+//   public data: string;
+
+//   toJSON(): 
+// }
+
 class VerificationKey extends Struct({
   ...provable({ data: String, hash: Field }),
   toJSON({ data }: { data: string }) {
     return data;
+  },
+  fromJSON({ data }: { data: string }) {
+      const circuitValue = Pickles.sideLoaded.vkToCircuit(() => data)
+      const hash = Pickles.sideLoaded.vkDigest(circuitValue)
+      return new VerificationKey({
+        data,
+        hash
+      })
   },
 }) {}
 

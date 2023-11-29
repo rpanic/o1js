@@ -24,7 +24,7 @@ import {
 import { Provable } from './provable.js';
 import { assert, prettifyStacktracePromise } from './errors.js';
 import { snarkContext } from './provable-context.js';
-import { hashConstant } from './hash.js';
+import { Poseidon, hashConstant, packToFields } from './hash.js';
 import { MlArray, MlBool, MlResult, MlPair, MlUnit } from './ml/base.js';
 import { MlFieldArray, MlFieldConstArray } from './ml/fields.js';
 import { FieldConst, FieldVar } from './field.js';
@@ -197,7 +197,10 @@ class DynamicProof<Input, Output> extends Proof<Input, Output> {
     if(Provable.inCheckedComputation()){
       const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
       // Check hash
-      const hash = Pickles.sideLoaded.vkDigest(circuitVk);
+      const digest = Pickles.sideLoaded.vkDigest(circuitVk) as any;
+      const digestFields = packToFields({ packed: digest })
+      const hash = Poseidon.hash(digestFields)
+      console.log(hash.toString())
       hash.assertEquals(vk.hash, "Provided VerificationKey hash not correct");
       Pickles.sideLoaded.inCircuit(tag, vk.data);
     }
@@ -488,6 +491,7 @@ function sortMethodArguments(
   let genericArgs: Subclass<typeof GenericArgument>[] = [];
   for (let i = 0; i < privateInputs.length; i++) {
     let privateInput = privateInputs[i];
+    console.log("Checking parameter", i, isProof(privateInput))
     if (isProof(privateInput)) {
       if (privateInput === Proof) {
         throw Error(

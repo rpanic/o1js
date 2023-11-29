@@ -35,10 +35,14 @@ import {
   parseHeader,
 } from './proof-system/prover-keys.js';
 import { setSrsCache, unsetSrsCache } from '../bindings/crypto/bindings/srs.js';
+import { VerificationKey } from './zkapp.js';
+import { Circuit } from './circuit.js';
 
 // public API
 export {
   Proof,
+  DynamicProof,
+  TaggedProof,
   SelfProof,
   JsonProof,
   ZkProgram,
@@ -86,18 +90,13 @@ class Proof<Input, Output> {
         `class MyProof extends Proof<PublicInput, PublicOutput> { ... }`
     );
   };
+
   publicInput: Input;
   publicOutput: Output;
   proof: Pickles.Proof;
   maxProofsVerified: 0 | 1 | 2;
   shouldVerify = Bool(false);
 
-  verify() {
-    this.shouldVerify = Bool(true);
-  }
-  verifyIf(condition: Bool) {
-    this.shouldVerify = condition;
-  }
   toJSON(): JsonProof {
     let type = getStatementType(this.constructor as any);
     return {
@@ -182,6 +181,40 @@ class Proof<Input, Output> {
       proof: dummyRaw,
       maxProofsVerified,
     });
+  }
+}
+
+class DynamicProof<Input, Output> extends Proof<Input, Output> {
+  private initializeVk(vk: VerificationKey) {
+    const tag = (this.constructor as Subclass<typeof Proof>).tag();
+    if(Provable.inProver()){
+      Pickles.sideLoaded.inProver(tag, vk.data);
+    }
+    if(Provable.inCheckedComputation()){
+      const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
+      // Check hash
+      const hash = Pickles.sideLoaded.vkDigest(circuitVk);
+      hash.assertEquals(vk.hash, "Provided VerificationKey hash not correct");
+      Pickles.sideLoaded.inCircuit(tag, vk.data);
+    }
+  }
+
+  verify(vk: VerificationKey) {
+    this.shouldVerify = Bool(true);
+    this.initializeVk(vk);
+  }
+  verifyIf(vk: VerificationKey, condition: Bool) {
+    this.shouldVerify = condition;
+    this.initializeVk(vk);
+  }
+}
+
+class TaggedProof<Input, Output> extends Proof<Input, Output> {
+  verify() {
+    this.shouldVerify = Bool(true);
+  }
+  verifyIf(condition: Bool) {
+    this.shouldVerify = condition;
   }
 }
 
@@ -715,6 +748,10 @@ function picklesRuleFromFunction(
         let input = toFieldVars(type.input, publicInput);
         let output = toFieldVars(type.output, publicOutput);
         previousStatements.push(MlPair(input, output));
+
+        if (Proof.prototype instanceof DynamicProof) {
+          Pickles.sideLoaded.create(Proof.tag().name, proofInstance.maxProofsVerified, input.length, output.length);
+        }
       } else if (arg.type === 'generic') {
         finalArgs[i] = argsWithoutPublicInput?.[i] ?? emptyGeneric();
       }
@@ -744,9 +781,14 @@ function picklesRuleFromFunction(
         `Suggestion: You can merge more than two proofs by merging two at a time in a binary tree.`
     );
   }
+  
   let proofsToVerify = proofArgs.map((Proof) => {
     let tag = Proof.tag();
     if (tag === proofSystemTag) return { isSelf: true as const };
+    else if (Proof.prototype instanceof DynamicProof){
+      // For side-loaded keys, use the tag, it will get created later
+      return { isSelf: false, tag }
+    }
     else {
       let compiledTag = CompiledTag.get(tag);
       if (compiledTag === undefined) {

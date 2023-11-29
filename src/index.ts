@@ -40,6 +40,8 @@ export type { JsonProof } from './lib/proof_system.js';
 export {
   Proof,
   SelfProof,
+  DynamicProof,
+  TaggedProof,
   verify,
   Empty,
   Undefined,

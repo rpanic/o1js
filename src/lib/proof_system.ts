@@ -11,6 +11,7 @@ import {
   MlFeatureFlags,
   Gate,
   GateType,
+  Snarky,
 } from '../snarky.js';
 import { Field, Bool } from './core.js';
 import {
@@ -185,24 +186,43 @@ class Proof<Input, Output> {
 }
 
 class DynamicProof<Input, Output> extends Proof<Input, Output> {
-  public computedTag?: () => { name: string }
+  public static maxProofsVerified: 0 | 1 | 2;
+
+  public computedTag?: unknown;
 
   private initializeVk(vk: VerificationKey) {
-    console.log("Computed key:")
-    console.log(this.computedTag?.())
-    const tag = (this.constructor as Subclass<typeof Proof>).tag();
-    if(Provable.inProver()){
-      Pickles.sideLoaded.inProver(tag, vk.data);
-    }
+    const tag = this.computedTag;
+
+    console.log(tag)
+
     if(Provable.inCheckedComputation()){
+      if(Provable.inProver()){
+        Pickles.sideLoaded.inProver(tag, vk.data);
+      }
       const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
       // Check hash
       const digest = Pickles.sideLoaded.vkDigest(circuitVk) as any;
-      const digestFields = packToFields({ packed: digest })
-      const hash = Poseidon.hash(digestFields)
-      console.log(hash.toString())
-      hash.assertEquals(vk.hash, "Provided VerificationKey hash not correct");
-      Pickles.sideLoaded.inCircuit(tag, vk.data);
+      // fs.writeFileSync("/root/workspace/snarkyjs/debug.txt", JSON.stringify(digest, (_, v) => (typeof v === 'bigint' ? v.toString() : v)))
+      // const digestFields = packToFields({ packed: digest })
+
+      // const sponge = Snarky.poseidon.sponge.create(true);
+      // Snarky.poseidon.sponge.absorb(sponge, digest);
+      // Snarky.poseidon.sponge.squeeze()
+
+      const newState = Snarky.poseidon.update(
+          MlFieldArray.to([Field(0), Field(0), Field(0)]),
+          digest as any
+      )
+      const stateFields = MlFieldArray.from(newState) as [Field, Field, Field]
+      const hash = stateFields[0]
+      Provable.asProver(() => {
+        console.log(hash.toString())
+        console.log(hash)
+      })
+
+      // const hash = Poseidon.hash(digest)
+      Field(hash).assertEquals(vk.hash, "Provided VerificationKey hash not correct");
+      Pickles.sideLoaded.inCircuit(tag, circuitVk);
     }
   }
 
@@ -553,6 +573,12 @@ function isProof(type: unknown): type is typeof Proof {
   );
 }
 
+function isDynamicProof(type: Subclass<typeof Proof>): type is Subclass<typeof DynamicProof> {
+  return (
+    (typeof type === 'function' && type.prototype instanceof DynamicProof)
+  )
+}
+
 class GenericArgument {
   isEmpty: boolean;
   constructor(isEmpty = false) {
@@ -758,6 +784,7 @@ function picklesRuleFromFunction(
         previousStatements.push(MlPair(input, output));
 
         if (proof_ instanceof DynamicProof) {
+          // TODO Do the circuit stuff
           console.log("Dynamic proof:", Proof.tag());
           proof_.computedTag = Proof.tag;
           Pickles.sideLoaded.create(Proof.tag().name, proofInstance.maxProofsVerified, input.length, output.length);
@@ -835,6 +862,19 @@ function synthesizeMethodArguments(
       let type = getStatementType(Proof);
       let publicInput = empty(type.input);
       let publicOutput = empty(type.output);
+      console.log("isDynamicProof", isDynamicProof(Proof))
+      if (isDynamicProof(Proof)){
+        console.log("Dynamic proof")
+        console.log(Proof.tag())
+        const maxProofsVerified = Proof.maxProofsVerified;
+        const computedTag = Pickles.sideLoaded.create(
+          Proof.tag().name, 
+          maxProofsVerified, 
+          type.input.sizeInFields(), 
+          type.output.sizeInFields()
+        );
+        console.log(computedTag)
+      }
       args.push(new Proof({ publicInput, publicOutput, proof: undefined }));
     } else if (arg.type === 'generic') {
       args.push(emptyGeneric());

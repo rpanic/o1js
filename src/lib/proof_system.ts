@@ -874,8 +874,13 @@ function synthesizeMethodArguments(
           type.output.sizeInFields()
         );
         console.log(computedTag)
+
+        const stubProof = new DynamicProof({ publicInput, publicOutput, proof: undefined, maxProofsVerified })
+        stubProof.computedTag = computedTag;
+        args.push(stubProof);
+      }else{
+        args.push(new Proof({ publicInput, publicOutput, proof: undefined }));
       }
-      args.push(new Proof({ publicInput, publicOutput, proof: undefined }));
     } else if (arg.type === 'generic') {
       args.push(emptyGeneric());
     }

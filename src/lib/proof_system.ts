@@ -785,9 +785,6 @@ function picklesRuleFromFunction(
 
         if (proof_ instanceof DynamicProof) {
           // TODO Do the circuit stuff
-          console.log("Dynamic proof:", Proof.tag());
-          proof_.computedTag = Proof.tag;
-          Pickles.sideLoaded.create(Proof.tag().name, proofInstance.maxProofsVerified, input.length, output.length);
         }
       } else if (arg.type === 'generic') {
         finalArgs[i] = argsWithoutPublicInput?.[i] ?? emptyGeneric();

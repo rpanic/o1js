@@ -190,11 +190,12 @@ class DynamicProof<Input, Output> extends Proof<Input, Output> {
 
   public computedTag?: unknown;
 
+  usedVerificationKey?: VerificationKey;
+
   private initializeVk(vk: VerificationKey) {
     const tag = this.computedTag;
 
     console.log(tag)
-  
 
     if(Provable.inCheckedComputation()){
       if(Provable.inProver()){
@@ -229,11 +230,11 @@ class DynamicProof<Input, Output> extends Proof<Input, Output> {
 
   verify(vk: VerificationKey) {
     this.shouldVerify = Bool(true);
-    this.initializeVk(vk);
+    this.usedVerificationKey = vk;
   }
   verifyIf(vk: VerificationKey, condition: Bool) {
     this.shouldVerify = condition;
-    this.initializeVk(vk);
+    this.usedVerificationKey = vk;
   }
 }
 
@@ -757,7 +758,7 @@ function picklesRuleFromFunction(
     let { witnesses: argsWithoutPublicInput, inProver } = snarkContext.get();
     assert(!(inProver && argsWithoutPublicInput === undefined));
     let finalArgs = [];
-    let proofs: Proof<any, any>[] = [];
+    let proofs: { proof: Proof<any, any>, compiledTag: unknown | undefined }[] = [];
     let previousStatements: Pickles.Statement<FieldVar>[] = [];
     for (let i = 0; i < allArgs.length; i++) {
       let arg = allArgs[i];
@@ -779,13 +780,16 @@ function picklesRuleFromFunction(
         publicOutput = Provable.witness(type.output, () => publicOutput);
         let proofInstance = new Proof({ publicInput, publicOutput, proof });
         finalArgs[i] = proofInstance;
-        proofs.push(proofInstance);
         let input = toFieldVars(type.input, publicInput);
         let output = toFieldVars(type.output, publicOutput);
         previousStatements.push(MlPair(input, output));
 
         if (proof_ instanceof DynamicProof) {
-          // TODO Do the circuit stuff
+          const appTag = Proof.tag();
+          const tag = CompiledTag.get(appTag);
+          proofs.push({ proof: proofInstance, compiledTag: tag });
+        }else{
+          proofs.push({ proof: proofInstance, compiledTag: undefined });
         }
       } else if (arg.type === 'generic') {
         finalArgs[i] = argsWithoutPublicInput?.[i] ?? emptyGeneric();
@@ -798,6 +802,44 @@ function picklesRuleFromFunction(
       let input = fromFieldVars(publicInputType, publicInput);
       result = func(input, ...finalArgs);
     }
+
+    proofs.forEach(({ proof, compiledTag }) => {
+      if(compiledTag !== undefined) {
+        const vk = (proof as DynamicProof<unknown, unknown>).usedVerificationKey;
+        if(vk === undefined){
+          throw Error("You have to call .verify(vk) on every used DynamicProof");
+        }
+        // Do the circuit stuff for sideloaded keys
+        if(Provable.inProver()){
+          Pickles.sideLoaded.inProver(compiledTag, vk.data);
+        }
+        const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
+        // Check hash
+        const digest = Pickles.sideLoaded.vkDigest(circuitVk) as any;
+        // fs.writeFileSync("/root/workspace/snarkyjs/debug.txt", JSON.stringify(digest, (_, v) => (typeof v === 'bigint' ? v.toString() : v)))
+        // const digestFields = packToFields({ packed: digest })
+
+        // const sponge = Snarky.poseidon.sponge.create(true);
+        // Snarky.poseidon.sponge.absorb(sponge, digest);
+        // Snarky.poseidon.sponge.squeeze()
+
+        const newState = Snarky.poseidon.update(
+            MlFieldArray.to([Field(0), Field(0), Field(0)]),
+            digest as any
+        )
+        const stateFields = MlFieldArray.from(newState) as [Field, Field, Field]
+        const hash = stateFields[0]
+        Provable.asProver(() => {
+          console.log(hash.toString())
+          console.log(hash)
+        })
+
+        // const hash = Poseidon.hash(digest)
+        Field(hash).assertEquals(vk.hash, "Provided VerificationKey hash not correct");
+        Pickles.sideLoaded.inCircuit(compiledTag, circuitVk);
+    }
+    })
+
     // if the public output is empty, we don't evaluate `toFields(result)` to allow the function to return something else in that case
     let hasPublicOutput = publicOutputType.sizeInFields() !== 0;
     let publicOutput = hasPublicOutput ? publicOutputType.toFields(result) : [];

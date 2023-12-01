@@ -865,12 +865,12 @@ function synthesizeMethodArguments(
       console.log("isDynamicProof", isDynamicProof(Proof))
       if (isDynamicProof(Proof)){
         console.log("Dynamic proof")
-        const tag = Proof.tag().name
+        const tag = Proof.tag()
         console.log(tag)
 
         const maxProofsVerified = Proof.maxProofsVerified;
         const computedTag = Pickles.sideLoaded.create(
-          tag, 
+          tag.name, 
           maxProofsVerified, 
           type.input.sizeInFields(), 
           type.output.sizeInFields()

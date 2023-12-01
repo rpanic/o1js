@@ -847,7 +847,7 @@ function picklesRuleFromFunction(
       publicOutput: MlFieldArray.to(publicOutput),
       previousStatements: MlArray.to(previousStatements),
       shouldVerify: MlArray.to(
-        proofs.map((proof) => proof.shouldVerify.toField().value)
+        proofs.map((proof) => proof.proof.shouldVerify.toField().value)
       ),
     };
   }

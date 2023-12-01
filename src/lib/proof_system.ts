@@ -194,6 +194,7 @@ class DynamicProof<Input, Output> extends Proof<Input, Output> {
     const tag = this.computedTag;
 
     console.log(tag)
+  
 
     if(Provable.inCheckedComputation()){
       if(Provable.inProver()){
@@ -821,7 +822,9 @@ function picklesRuleFromFunction(
     if (tag === proofSystemTag) return { isSelf: true as const };
     else if (Proof.prototype instanceof DynamicProof){
       // For side-loaded keys, use the tag, it will get created later
-      return { isSelf: false, tag }
+      const slKey = CompiledTag.get(tag)
+      console.log(slKey)
+      return { isSelf: false, tag: slKey }
     }
     else {
       let compiledTag = CompiledTag.get(tag);
@@ -862,15 +865,19 @@ function synthesizeMethodArguments(
       console.log("isDynamicProof", isDynamicProof(Proof))
       if (isDynamicProof(Proof)){
         console.log("Dynamic proof")
-        console.log(Proof.tag())
+        const tag = Proof.tag().name
+        console.log(tag)
+
         const maxProofsVerified = Proof.maxProofsVerified;
         const computedTag = Pickles.sideLoaded.create(
-          Proof.tag().name, 
+          tag, 
           maxProofsVerified, 
           type.input.sizeInFields(), 
           type.output.sizeInFields()
         );
         console.log(computedTag)
+
+        CompiledTag.store(tag, computedTag)
 
         const stubProof = new DynamicProof({ publicInput, publicOutput, proof: undefined, maxProofsVerified })
         stubProof.computedTag = computedTag;

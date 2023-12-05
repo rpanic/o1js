@@ -786,7 +786,7 @@ function picklesRuleFromFunction(
 
         if (proof_ instanceof DynamicProof) {
           const appTag = Proof.tag();
-          const tag = CompiledTag.get(appTag);
+          const tag = CompiledTag.get(appTag.name);
           proofs.push({ proof: proofInstance, compiledTag: tag });
         }else{
           proofs.push({ proof: proofInstance, compiledTag: undefined });
@@ -817,11 +817,6 @@ function picklesRuleFromFunction(
         // Check hash
         const digest = Pickles.sideLoaded.vkDigest(circuitVk) as any;
         // fs.writeFileSync("/root/workspace/snarkyjs/debug.txt", JSON.stringify(digest, (_, v) => (typeof v === 'bigint' ? v.toString() : v)))
-        // const digestFields = packToFields({ packed: digest })
-
-        // const sponge = Snarky.poseidon.sponge.create(true);
-        // Snarky.poseidon.sponge.absorb(sponge, digest);
-        // Snarky.poseidon.sponge.squeeze()
 
         const newState = Snarky.poseidon.update(
             MlFieldArray.to([Field(0), Field(0), Field(0)]),
@@ -829,10 +824,6 @@ function picklesRuleFromFunction(
         )
         const stateFields = MlFieldArray.from(newState) as [Field, Field, Field]
         const hash = stateFields[0]
-        Provable.asProver(() => {
-          console.log(hash.toString())
-          console.log(hash)
-        })
 
         // const hash = Poseidon.hash(digest)
         Field(hash).assertEquals(vk.hash, "Provided VerificationKey hash not correct");
@@ -864,7 +855,7 @@ function picklesRuleFromFunction(
     if (tag === proofSystemTag) return { isSelf: true as const };
     else if (Proof.prototype instanceof DynamicProof){
       // For side-loaded keys, use the tag, it will get created later
-      const slKey = CompiledTag.get(tag)
+      const slKey = CompiledTag.get(tag.name)
       console.log(slKey)
       return { isSelf: false, tag: slKey }
     }
@@ -919,7 +910,7 @@ function synthesizeMethodArguments(
         );
         console.log(computedTag)
 
-        CompiledTag.store(tag, computedTag)
+        CompiledTag.store(tag.name, computedTag)
 
         const stubProof = new DynamicProof({ publicInput, publicOutput, proof: undefined, maxProofsVerified })
         stubProof.computedTag = computedTag;

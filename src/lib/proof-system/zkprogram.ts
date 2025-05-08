@@ -801,7 +801,7 @@ If you are using a SmartContract, make sure you are using the @method decorator.
 
 async function analyzeMethod(
   publicInputType: Provable<any>,
-  methodIntf: MethodInterface,
+  methodIntf: Pick<MethodInterface, "args">,
   method: (...args: any) => unknown
 ): Promise<MethodAnalysis> {
   let result: ConstraintSystemSummary;
